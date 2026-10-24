@@ -935,7 +935,7 @@ def calculate_composite_score(
     max_ippure: float = 35.0,
     min_streaming: int = 4,
 ) -> Tuple[float, Dict[str, Any], bool]:
-    """计算综合系数（0-100分制），并严苛判定是否同时满足三大黄金指标：
+    """计算综合系数（0-100分制），并判定是否同时满足质量筛选指标：
 
     1. 欺诈分 < 5
     2. IPPure 系数 <= 35%
@@ -1319,9 +1319,9 @@ def print_report_card(rep: CompleteIPReport) -> None:
 
     score, bd, is_qual = calculate_composite_score(rep)
     st_badge = (
-        f"{bg_green} ★ 黄金纯净 IP {c_reset}"
+        f"{bg_green} ★ 达标预留 IP {c_reset}"
         if is_qual
-        else f"{bg_yellow} ▲ 待复核/未达标 {c_reset}"
+        else f"{bg_yellow} ▲ 未达标 {c_reset}"
     )
     print(f"\n{c_bold}六、 综合质量系数与达标评估 (基于用户定制标准){c_reset}")
     scam_flag = "✓" if bd["scam_val"] < 5 else "✗"
@@ -1477,9 +1477,9 @@ def print_comparative_table(
         score_str = f"{score_color}{score} 分{c_reset}"
 
         qual_str = (
-            f"{c_green}★ 达标黄金{c_reset}"
+            f"{c_green}★ 达标{c_reset}"
             if is_qual
-            else f"{c_yellow}▲ 待复核{c_reset}"
+            else f"{c_yellow}▲ 未达标{c_reset}"
         )
 
         row_items = [

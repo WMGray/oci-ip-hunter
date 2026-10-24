@@ -2,10 +2,10 @@
 
 模块化架构设计：
 1. 功能一 (Quality Filter): 纯静态信誉与纯净度快筛（Scamalytics, IPPure, 黑名单等），
-   完全不触碰任何云主机，支持防封号平滑休眠（Sleep + Jitter）与自动猎取；
-2. 功能二 (Latency Probe): 基于常驻测试桩私网 IP（10.0.0.250）进行借壳真实链路测速，
-   使用原生 ICMP 穿透本地代理 TUN，测量直连 RTT 与丢包率，绝不损坏生产主 IP；
-3. 联动流水线 (Pipeline): 质量达标 -> 自动挂桩测速 -> 双优选锁定或安全销毁。
+   不触碰云主机，支持平滑休眠（Sleep + Jitter）与批量申请筛选；
+2. 功能二 (Latency Probe): 基于常驻测试桩私网 IP（10.0.0.250）进行无损真实链路测速，
+   使用原生 ICMP 穿透本地代理 TUN，测量直连 RTT 与丢包率，不影响生产主 IP；
+3. 联动流水线 (Pipeline): 质量达标 -> 自动挂桩测速 -> 双达标保留或安全释放。
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def evaluate_quality(rep: CompleteIPReport) -> Tuple[str, bool]:
 
     if is_qualified:
         desc = (
-            f"★ 极品钻石 IP [综合系数: {score}分] "
+            f"★ 达标优质 IP [综合系数: {score}分] "
             f"(欺诈:{scam}分, IPPure:{ipp_s}, 流媒体:{stream_c}解)"
         )
         return desc, True
@@ -147,7 +147,7 @@ def rename_reserved_ip(client: OCIClient, public_ip_id: str, new_name: str) -> N
 
 
 # ==============================================================================
-# 功能一：纯静态质量筛选与自动猎取 (Quality Filter)
+# 功能一：纯静态质量筛选与批量申请 (Quality Filter)
 # ==============================================================================
 
 
@@ -202,10 +202,10 @@ def run_batch_hunt(
     timeout: float = 15.0,
     naming_prefix: str = "vip-pure",
 ) -> List[Dict[str, Any]]:
-    """5x5 批量优选摇号：每批申请 batch_size 个 IP，筛选三大黄金指标，
+    """批量申请与质量筛选：每批申请 batch_size 个 IP，筛选各项质量指标，
 
-    累计收集并保留至少 target_count (默认 5) 个极品黄金 IP，
-    达标的自动按序重命名为 vip-pure-01~05 并保留，未达标的立即秒删。
+    累计收集并保留至少 target_count (默认 5) 个达标优质 IP，
+    达标的自动按序重命名为 vip-pure-01~05 并保留，未达标的立即释放。
     """
     batch_size = min(max(1, batch_size), 10)
     max_batches = min(max(1, max_batches), 20)
@@ -213,7 +213,7 @@ def run_batch_hunt(
     tot_tested = 0
     mode_lbl = "极速" if fast else "深度全景"
 
-    # 预载租户中已存在的黄金达标 IP，避免重复摇号
+    # 预载租户中已存在的达标 IP，避免重复申请
     existing_all = client.network.list_reserved_ips()
     existing_vips = [
         {"ip": r["ip"], "id": r["id"], "display_name": r["name"]}
@@ -223,24 +223,24 @@ def run_batch_hunt(
     retained_list: List[Dict[str, Any]] = list(existing_vips)
 
     print(
-        f"\n{C_CYAN}====== 启动 Oracle 优选猎取 "
+        f"\n{C_CYAN}====== 启动 Oracle 批量优选申请 "
         f"(目标保留 {target_count} 个) ======{C_RESET}"
     )
     if existing_vips:
         print(
-            f"{C_GREEN}>>> 检测到租户中已存有 {len(existing_vips)} 个黄金 IP:{C_RESET}"
+            f"{C_GREEN}>>> 检测到租户中已存有 {len(existing_vips)} 个达标 IP:{C_RESET}"
         )
         for ev in existing_vips:
             print(f"    • {ev['display_name']}: {ev['ip']}")
         needed = max(0, target_count - len(retained_list))
         print(
             f"    当前累计保留: [{len(retained_list)}/{target_count}]，"
-            f"本次只需再猎取 {needed} 个！\n"
+            f"本次只需再分配 {needed} 个。\n"
         )
         if len(retained_list) >= target_count:
             print(
                 f"{C_GREEN}租户已满足目标保留数量 ({target_count} 个)，"
-                f"无需继续摇号！{C_RESET}\n"
+                f"无需继续申请。{C_RESET}\n"
             )
             return retained_list
     print(
@@ -248,11 +248,11 @@ def run_batch_hunt(
         f"目标保留: {C_BOLD}{target_count} 个{C_RESET} | 模式: {mode_lbl}"
     )
     print(
-        f"硬核门槛: 欺诈分 < {max_scam} | IPPure <= {max_ippure}% | "
+        f"准入门槛: 欺诈分 < {max_scam} | IPPure <= {max_ippure}% | "
         f"流媒体 >= {min_streaming} | 黑名单 0 标记"
     )
     print(
-        f"自动命名: 达标黄金 IP 自动按序重命名为 "
+        f"自动命名: 达标 IP 自动按序重命名为 "
         f"{naming_prefix}-01~{target_count:02d}\n"
     )
 
@@ -361,8 +361,8 @@ def run_batch_hunt(
             to_keep = qualified[:take_count]
 
             print(
-                f"\n{C_GREEN}{C_BOLD}🎉 本批次发现 {len(qualified)} 个合格黄金 IP！"
-                f"择优保留前 {take_count} 个...{C_RESET}"
+                f"\n{C_GREEN}{C_BOLD}✓ 本批次发现 {len(qualified)} 个达标 IP，"
+                f"保留前 {take_count} 个...{C_RESET}"
             )
 
             for item in to_keep:
@@ -372,7 +372,7 @@ def run_batch_hunt(
 
                 vip_name = generate_vip_display_name(client, naming_prefix)
                 print(
-                    f"  -> 锁定 IP: {C_BOLD}{k_ip}{C_RESET} "
+                    f"  -> 选定 IP: {C_BOLD}{k_ip}{C_RESET} "
                     f"(综合分: {k_score} 分) -> 重命名为: {C_BOLD}{vip_name}{C_RESET}"
                 )
                 try:
@@ -401,17 +401,17 @@ def run_batch_hunt(
         curr_count = len(retained_list)
         print(
             f"\n{C_CYAN}>>> 当前累计保留进度: "
-            f"[{curr_count}/{target_count}] 个黄金 IP{C_RESET}"
+            f"[{curr_count}/{target_count}] 个达标 IP{C_RESET}"
         )
 
         if curr_count >= target_count:
             print(
-                f"\n{C_GREEN}{C_BOLD}🏆 恭喜！已圆满收集达成 {target_count} 个"
-                f"黄金纯净 IP 目标！{C_RESET}"
+                f"\n{C_GREEN}{C_BOLD}✓ 已达成目标保留数量 "
+                f"({target_count} 个达标 IP)。{C_RESET}"
             )
             print(
                 f"\n{C_BOLD}====== 最终保留的 {target_count} 个"
-                f"黄金 IP 资产名录 ======{C_RESET}"
+                f"达标 IP 清单 ======{C_RESET}"
             )
             for idx, item in enumerate(retained_list, 1):
                 print(
@@ -426,14 +426,14 @@ def run_batch_hunt(
             AntiBanGuard.safe_sleep(cooldown, reason="批次轮询平滑间隔")
 
     print(
-        f"\n{C_YELLOW}已完成全部 {max_batches} 轮摇号（共体检 {tot_tested} 个 IP），"
-        f"当前共保留 {len(retained_list)}/{target_count} 个黄金 IP。{C_RESET}"
+        f"\n{C_YELLOW}已完成全部 {max_batches} 轮测试（共检测 {tot_tested} 个 IP），"
+        f"当前共保留 {len(retained_list)}/{target_count} 个达标 IP。{C_RESET}"
     )
     return retained_list
 
 
 # ==============================================================================
-# 功能二：测试桩私网 IP 借壳真实链路测速 (Latency Probe)
+# 功能二：测试桩私网 IP 真实链路测速 (Latency Probe)
 # ==============================================================================
 
 
@@ -667,7 +667,9 @@ def run_latency_test_on_probe(
     ping_count_per_round: int = 4,
     gateway: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """功能二：将待测预留 IP 借壳挂载到测试桩上，精准测量直连网络性能，测后安全解绑。
+    """功能二：将待测预留 IP 挂载到测试桩私网 IP 上，
+
+    精准测量直连网络性能，测后安全解绑。
 
     逻辑顺序：
     1. 绑定：预留公网 IP -> 测试桩私网 IP (10.0.0.250)
@@ -679,8 +681,8 @@ def run_latency_test_on_probe(
     probe_ip = probe["ip"]
 
     print(
-        f"\n{C_CYAN}[第 1 步: 借壳绑定] 正在将待测预留 IP {C_BOLD}{public_ip}{C_RESET} "
-        f"挂载到测试桩私网 IP ({probe_ip})...{C_RESET}"
+        f"\n{C_CYAN}[第 1 步: 挂载测试桩] 正在将待测预留 IP "
+        f"{C_BOLD}{public_ip}{C_RESET} 挂载到私网 IP ({probe_ip})...{C_RESET}"
     )
     # 预防性检查：若测试桩上尚有遗留的旧公网 IP 绑定，先解绑恢复就绪状态
     try:
@@ -797,7 +799,7 @@ def run_latency_test_on_probe(
     overall_jitter = round(overall_max - overall_min, 1)
 
     if overall_avg <= 180.0 and total_loss_pct <= 5.0:
-        verdict = f"{C_GREEN}★ 极品超低延迟直连（骨干优化线路，极力推荐）{C_RESET}"
+        verdict = f"{C_GREEN}★ 优质超低延迟直连（骨干优化线路，极力推荐）{C_RESET}"
     elif overall_avg <= 235.0 and total_loss_pct <= 10.0:
         verdict = f"{C_CYAN}● 优质公网标准直连（低丢包/稳定主力推荐）{C_RESET}"
     elif overall_avg <= 245.0 and total_loss_pct <= 20.0:
@@ -1017,12 +1019,12 @@ def run_pipeline(
     instance_name: str = "oci-main-arm",
     max_acceptable_rtt: float = 220.0,
 ) -> Optional[Dict[str, Any]]:
-    """联动流水线：摇出黄金纯净 IP -> 自动挂测试桩测速 -> 达到双优选方才锁定。"""
+    """联动流水线：申请 IP -> 质量快筛 -> 挂桩测速 -> 双达标保留。"""
     max_attempts = min(max_attempts, 10)
     print(f"\n{C_CYAN}====== 启动 Oracle IP 质量与延迟联动双检流水线 ======{C_RESET}")
     print(
         f"最大尝试: {max_attempts} 轮 | 延迟阈值: <= {max_acceptable_rtt}ms | "
-        f"防封休眠: {cooldown}s (含抖动)\n"
+        f"平滑休眠: {cooldown}s (含抖动)\n"
     )
 
     for attempt in range(1, max_attempts + 1):
@@ -1043,15 +1045,15 @@ def run_pipeline(
 
         if not is_golden:
             print(
-                f"{C_YELLOW}未达黄金纯净标准 ({eval_str})，跳过测速立即释放...{C_RESET}"
+                f"{C_YELLOW}未达质量筛选标准 ({eval_str})，跳过测速立即释放...{C_RESET}"
             )
             client.network.delete_public_ip(ip_id)
             if attempt < max_attempts:
-                AntiBanGuard.safe_sleep(cooldown, reason="防封平滑休眠")
+                AntiBanGuard.safe_sleep(cooldown, reason="平滑休眠")
             continue
 
         print(
-            f"{C_GREEN}✓ 门禁一通过（黄金 IP: {ip}）！"
+            f"{C_GREEN}✓ 质量快筛通过（IP: {ip}），"
             f"进入门禁二: 挂桩物理测速...{C_RESET}"
         )
         print_report_card(rep)
@@ -1073,10 +1075,10 @@ def run_pipeline(
 
         if avg_rtt is not None and avg_rtt <= max_acceptable_rtt and loss <= 10:
             print(
-                f"\n{C_GREEN}{C_BOLD}🏆 完美！同时通过【黄金纯净度】与"
-                f"【物理延迟 ({avg_rtt}ms)】双重门禁！{C_RESET}"
+                f"\n{C_GREEN}{C_BOLD}✓ 同时满足质量标准与物理延迟阈值 "
+                f"({avg_rtt}ms <= {max_acceptable_rtt}ms)！{C_RESET}"
             )
-            print(f"{C_GREEN}已将极品 IP ({ip}) 锁定保存在预留池中！{C_RESET}")
+            print(f"{C_GREEN}已将达标 IP ({ip}) 保存在预留池中。{C_RESET}")
             return alloc
 
         print(
@@ -1120,25 +1122,25 @@ def main() -> int:
 
     # 功能一参数
     parser.add_argument(
-        "--hunt", action="store_true", help="质量模式下开启 5x5 批量优选摇号"
+        "--hunt", action="store_true", help="质量模式下开启批量申请与质量筛选"
     )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=5,
-        help="批量摇号模式下每批申请的 IP 数量（默认 5 个）",
+        help="批量模式下每批申请的 IP 数量（默认 5 个）",
     )
     parser.add_argument(
         "--target-count",
         type=int,
         default=5,
-        help="目标保留的黄金 IP 数量（默认至少保留 5 个）",
+        help="目标保留的达标 IP 数量（默认至少保留 5 个）",
     )
     parser.add_argument(
         "--max-batches",
         type=int,
         default=10,
-        help="批量摇号最大轮次数（默认 10 轮）",
+        help="批量申请最大轮次数（默认 10 轮）",
     )
     parser.add_argument(
         "--max-scam",
@@ -1188,7 +1190,7 @@ def main() -> int:
     parser.add_argument(
         "--auto",
         action="store_true",
-        help="单次质量模式下：黄金 IP 自动保留，非黄金 IP 自动释放",
+        help="单次质量模式下：达标 IP 自动保留，未达标 IP 自动释放",
     )
     parser.add_argument(
         "--release",
@@ -1396,11 +1398,11 @@ def main() -> int:
                     vip_name = generate_vip_display_name(client, args.naming_prefix)
                     rename_reserved_ip(client, alloc["id"], vip_name)
                     print(
-                        f"{C_GREEN}✓ 黄金纯净 IP (综合分: {score})，"
-                        f"已重命名为 {vip_name} 并安全保留在 OCI 预留池中。{C_RESET}"
+                        f"{C_GREEN}✓ 达标预留 IP (综合分: {score})，"
+                        f"已重命名为 {vip_name} 并保留在 OCI 预留池中。{C_RESET}"
                     )
                 else:
-                    print(f"{C_YELLOW}! 未达三大黄金标准，正在自动释放...{C_RESET}")
+                    print(f"{C_YELLOW}! 未达质量筛选标准，正在自动释放...{C_RESET}")
                     client.network.delete_public_ip(alloc["id"])
                     print(f"{C_GREEN}✓ 预留 IP 已彻底释放。{C_RESET}")
             elif action == "release":
