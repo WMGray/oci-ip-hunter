@@ -49,7 +49,7 @@ flowchart TD
 
 ```bash
 # 克隆仓库
-git clone https://github.com/<YOUR_USERNAME>/oci-ip-hunter.git
+git clone https://github.com/WMGray/oci-ip-hunter.git
 cd oci-ip-hunter
 
 # 使用 uv 同步依赖（推荐）
