@@ -1,7 +1,7 @@
 [project]
-name = "oracle-cloud"
+name = "oci-ip-hunter"
 version = "1.0.0"
-description = "Oracle Cloud Infrastructure (OCI) 统一 SDK 客户端与 IP 体检工具"
+description = "Oracle Cloud Infrastructure (OCI) IP 自动化猎取优选、直连测速与资源治理工具箱"
 requires-python = ">=3.10"
 dependencies = [
     "oci==2.189.0",

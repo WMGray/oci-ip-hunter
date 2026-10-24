@@ -185,7 +185,7 @@ class AuthManager:
         use_instance_principals: bool = False,
     ) -> None:
         self.profile = profile
-        self.region = region
+        self.region = region or os.environ.get("OCI_REGION")
         self.config_file = config_file or (Path.home() / ".oci" / "config")
         self.store = SessionStore(profile)
 
@@ -202,7 +202,11 @@ class AuthManager:
         # 1. 实例主体
         if self._use_instance_principals:
             signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
-            reg = self.region or getattr(signer, "region", "us-sanjose-1")
+            reg = (
+                self.region
+                or getattr(signer, "region", None)
+                or os.environ.get("OCI_REGION")
+            )
             return signer, {"region": reg}, getattr(signer, "tenancy_id", "")
 
         # 2. 显式参数 API Key
@@ -215,7 +219,7 @@ class AuthManager:
                 private_key_content=self._key_content,
                 pass_phrase=self._pass_phrase,
             )
-            reg = self.region or "us-sanjose-1"
+            reg = self.region or os.environ.get("OCI_REGION")
             config_dict = {
                 "region": reg,
                 "tenancy": self._tenancy,
@@ -233,7 +237,11 @@ class AuthManager:
                 key = _read_key(cached["private_key"].encode())
                 signer = oci.auth.signers.SecurityTokenSigner(cached["token"], key)
                 signer.token = cached["token"]
-                reg = self.region or cached.get("region", "us-sanjose-1")
+                reg = (
+                    self.region
+                    or cached.get("region")
+                    or os.environ.get("OCI_REGION")
+                )
                 if exp - time.time() <= 300:
                     try:
                         signer, reg, tenant = self._refresh_token(
@@ -260,7 +268,7 @@ class AuthManager:
                     f"在配置文件 {self.config_file} 中未找到可用 profile"
                 )
 
-            reg = self.region or cfg.get("region", "us-sanjose-1")
+            reg = self.region or cfg.get("region") or os.environ.get("OCI_REGION")
             tenant = cfg["tenancy"]
 
             if "security_token_file" in cfg:
@@ -327,7 +335,12 @@ class AuthManager:
         self, tenant_name: Optional[str] = None, timeout: int = 180
     ) -> Dict[str, Any]:
         """唤起浏览器完成登录并刷新保存凭据。"""
-        reg = self.region or "us-sanjose-1"
+        reg = self.region or os.environ.get("OCI_REGION")
+        if not reg:
+            raise ValueError(
+                "SSO 登录必须指定 region，例如: "
+                "python src/cli.py auth login --region <YOUR_REGION>"
+            )
         token, key = _browser_login(reg, tenant_name, timeout)
         exp, tenant = _parse_token(token)
         _, reg, tenant = self._refresh_token(token, key, reg, tenant)
@@ -351,9 +364,15 @@ class AuthManager:
         if cached:
             exp, tenant = _parse_token(cached["token"])
             rem = max(0, int(exp - time.time()))
+            reg_info = (
+                cached.get("region")
+                or self.region
+                or os.environ.get("OCI_REGION")
+                or "Unknown"
+            )
             info = {
                 "profile": self.profile,
-                "region": cached.get("region") or self.region or "us-sanjose-1",
+                "region": reg_info,
                 "tenancy": tenant,
                 "auth_type": "SecurityTokenSigner",
                 "valid": rem > 0,

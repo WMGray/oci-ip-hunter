@@ -126,9 +126,9 @@ def evaluate_quality(rep: CompleteIPReport) -> Tuple[str, bool]:
 
 
 def generate_vip_display_name(
-    client: OCIClient, base_prefix: str = "vip-pure-sjc"
+    client: OCIClient, base_prefix: str = "vip-pure"
 ) -> str:
-    """根据现有预留 IP 名称，自动生成下一个可用的语义名称（如 vip-pure-sjc-01）。"""
+    """根据现有预留 IP 名称，自动生成下一个可用的语义名称（如 vip-pure-01）。"""
     existing = client.network.list_reserved_ips()
     names = {r.get("name") or "" for r in existing}
     for idx in range(1, 100):
@@ -200,12 +200,12 @@ def run_batch_hunt(
     min_streaming: int = 4,
     cooldown: float = 4.0,
     timeout: float = 15.0,
-    naming_prefix: str = "vip-pure-sjc",
+    naming_prefix: str = "vip-pure",
 ) -> List[Dict[str, Any]]:
     """5x5 批量优选摇号：每批申请 batch_size 个 IP，筛选三大黄金指标，
 
     累计收集并保留至少 target_count (默认 5) 个极品黄金 IP，
-    达标的自动按序重命名为 vip-pure-sjc-01~05 并保留，未达标的立即秒删。
+    达标的自动按序重命名为 vip-pure-01~05 并保留，未达标的立即秒删。
     """
     batch_size = min(max(1, batch_size), 10)
     max_batches = min(max(1, max_batches), 20)
@@ -529,7 +529,7 @@ def get_default_physical_gateway() -> str:
             return gw
     except Exception:
         pass
-    return "192.168.31.2"
+    return ""
 
 
 def execute_unproxied_probe(
@@ -553,11 +553,11 @@ def execute_unproxied_probe(
             "Probe",
             "-Ip",
             ip,
-            "-Gateway",
-            gw,
             "-Count",
             str(count),
         ]
+        if gw:
+            cmd.extend(["-Gateway", gw])
         try:
             proc = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=20.0
@@ -799,7 +799,7 @@ def run_latency_test_on_probe(
     if overall_avg <= 180.0 and total_loss_pct <= 5.0:
         verdict = f"{C_GREEN}★ 极品超低延迟直连（骨干优化线路，极力推荐）{C_RESET}"
     elif overall_avg <= 235.0 and total_loss_pct <= 10.0:
-        verdict = f"{C_CYAN}● 优质美西标准直连（低丢包/稳定主力推荐）{C_RESET}"
+        verdict = f"{C_CYAN}● 优质公网标准直连（低丢包/稳定主力推荐）{C_RESET}"
     elif overall_avg <= 245.0 and total_loss_pct <= 20.0:
         verdict = f"{C_YELLOW}◆ 普通可用直连链路（正常公网水平，偶有波动）{C_RESET}"
     else:
@@ -1160,8 +1160,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--naming-prefix",
-        default="vip-pure-sjc",
-        help="优选达标 IP 自动重命名格式（默认 vip-pure-sjc）",
+        default="vip-pure",
+        help="优选达标 IP 自动重命名格式（默认 vip-pure）",
     )
     parser.add_argument(
         "--cooldown",

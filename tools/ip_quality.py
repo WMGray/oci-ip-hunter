@@ -265,7 +265,7 @@ class MailAndSecurity:
     spamhaus_clean: bool = True
     firehol_clean: bool = True
     ipsum_clean: bool = True
-    cf_colo: str = "SJC"
+    cf_colo: str = "-"
     cf_threat: str = "无盾拦截 (Pass)"
 
 
@@ -495,8 +495,8 @@ def _check_port_25(timeout: float = 2.0) -> str:
 def _check_cf_and_media() -> Dict[str, Any]:
     """检测 Cloudflare 边缘节点及主流 AI/流媒体连通状态。"""
     res = {
-        "colo": "SJC",
-        "loc": "US",
+        "colo": "-",
+        "loc": "-",
         "threat": "无盾拦截 (Pass)",
         "chatgpt": "已解锁",
         "claude": "受限",
@@ -516,8 +516,8 @@ def _check_cf_and_media() -> Dict[str, Any]:
         with urllib.request.urlopen(req, timeout=3.5) as r:
             lines = r.read().decode("utf-8").splitlines()
             d = dict(line.split("=", 1) for line in lines if "=" in line)
-            res["colo"] = d.get("colo", "SJC")
-            res["loc"] = d.get("loc", "US")
+            res["colo"] = d.get("colo", "-")
+            res["loc"] = d.get("loc", "-")
     except Exception:
         pass
 
@@ -884,7 +884,7 @@ def analyze_ip(
         spamhaus_clean=not _parse_bool(scam_tbl.get("Spamhaus")),
         firehol_clean=not _parse_bool(scam_tbl.get("Firehol")),
         ipsum_clean=not _parse_bool(scam_tbl.get("IPsum")),
-        cf_colo=media_res.get("colo", "SJC"),
+        cf_colo=media_res.get("colo", "-"),
         cf_threat="无盾拦截 (Pass)",
     )
 

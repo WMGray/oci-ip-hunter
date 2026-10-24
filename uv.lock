@@ -1093,7 +1093,7 @@ wheels = [
 ]
 
 [[package]]
-name = "oracle-cloud"
+name = "oci-ip-hunter"
 version = "1.0.0"
 source = { virtual = "." }
 dependencies = [

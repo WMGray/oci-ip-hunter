@@ -1,6 +1,6 @@
 param(
     [ValidateSet('Inspect', 'Probe')][string]$Action = 'Inspect',
-    [string]$Gateway = '192.168.31.1',
+    [string]$Gateway = '',
     [string]$Ip = '',
     [int]$InterfaceIndex = 0,
     [ValidateRange(1, 100)][int]$Count = 10,
@@ -96,6 +96,14 @@ $createdRoute = $null
 $mutex = $null
 $ownsMutex = $false
 try {
+    if ([string]::IsNullOrWhiteSpace($Gateway)) {
+        $gwRoute = Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Where-Object { $_.NextHop -notlike '127.*' -and $_.NextHop -ne '0.0.0.0' -and $_.RouteMetric -lt 5000 } | Sort-Object RouteMetric | Select-Object -First 1
+        if ($gwRoute) {
+            $Gateway = [string]$gwRoute.NextHop
+        } else {
+            throw 'Gateway parameter is required or must be auto-detectable.'
+        }
+    }
     $parsedGateway = [System.Net.IPAddress]::Parse($Gateway)
     if ($parsedGateway.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) {
         throw 'Gateway must be IPv4.'
