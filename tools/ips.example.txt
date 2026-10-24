@@ -1,0 +1,8 @@
+# 待测公网 IPv4 列表示例模版 (每行一个 IP，支持 # 注释)
+# 使用方式: 复制本文件为 ips.txt，或直接在命令行中指定:
+# uv run python tools/ip_quality.py --file tools/ips.example.txt
+
+# 示例 IP（替换为您需要测试的实际公网 IP）
+1.1.1.1       # Cloudflare DNS
+8.8.8.8       # Google Public DNS
+140.82.112.4  # GitHub

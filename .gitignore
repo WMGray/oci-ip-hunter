@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Linter & Tools
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Local sensitive credentials & keys
+*.pem
+*.key
+.oci/
+oci_api_key*
+
+# Local test data & private records
+tools/ips.txt
+tools/reports/
+OCI CLI安装与远程调用记录.md
+
+# Operating System
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
