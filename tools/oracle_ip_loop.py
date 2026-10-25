@@ -333,8 +333,8 @@ def run_batch_hunt(
                 ipp_str = f"{ipp_val}%"
                 ipp_flag = "✓" if ipp_val <= max_ippure else "✗"
             else:
-                ipp_str = "未测到"
-                ipp_flag = "✗"
+                ipp_str = "跳过"
+                ipp_flag = "-"
             st_cnt = bd.get("stream_cnt", 0)
             st_flag = "✓" if st_cnt >= min_streaming else "✗"
             qual_str = (

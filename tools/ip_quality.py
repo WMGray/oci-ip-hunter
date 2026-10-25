@@ -957,7 +957,8 @@ def calculate_composite_score(
         ipp_passed = ipp <= max_ippure
         ipp_pts = max(0.0, round(35.0 - (ipp * 0.7), 1))
     else:
-        ipp_passed = False
+        # 当 IPPure 被跳过（如 fast 模式）或未测量时，免检通过
+        ipp_passed = True
         ipp_pts = 0.0
 
     is_qualified = bool(
@@ -973,7 +974,12 @@ def calculate_composite_score(
     base_pts = 10.0 if (bl_clean and b.is_native) else 0.0
     claude_bonus = 10.0 if claude_unlocked else 0.0
 
-    total_score = round(scam_pts + ipp_pts + stream_pts + base_pts + claude_bonus, 1)
+    raw_score = scam_pts + ipp_pts + stream_pts + base_pts + claude_bonus
+    if ipp >= 0:
+        total_score = round(raw_score, 1)
+    else:
+        # 未测 IPPure 时，基准满分为 65 分，等比归一化至 100 分制
+        total_score = round(min(100.0, (raw_score / 65.0) * 100.0), 1)
     breakdown = {
         "scam_pts": scam_pts,
         "ipp_pts": ipp_pts,
@@ -1418,6 +1424,7 @@ def print_comparative_table(
     c_green = "\033[32m"
     c_yellow = "\033[33m"
     c_red = "\033[31m"
+    c_gray = "\033[90m"
     c_reset = "\033[0m"
 
     cols = [
@@ -1459,7 +1466,7 @@ def print_comparative_table(
             ipp_color = c_green if ipp_val <= 35 else c_red
             ipp_str = f"{ipp_color}{ipp_val}% ({ipp_flag}){c_reset}"
         else:
-            ipp_str = f"{c_red}-- (未测到){c_reset}"
+            ipp_str = f"{c_gray}跳过 (-){c_reset}"
 
         bot_val = sc.ippure_bot_ratio or f.robot.get("IPPure", "--")
 
