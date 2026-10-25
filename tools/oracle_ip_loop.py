@@ -21,6 +21,13 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 import oci  # noqa: E402
 
 # 确保能同时找到 src 与 tools 模块
@@ -437,6 +444,9 @@ def run_batch_hunt(
 # ==============================================================================
 
 
+_PROBE_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
 def get_or_create_probe_private_ip(
     client: OCIClient,
     instance_query: str = "oci-main-arm",
@@ -444,13 +454,34 @@ def get_or_create_probe_private_ip(
     probe_name: str = "latency-test-probe",
 ) -> Dict[str, Any]:
     """获取或在指定实例网卡上创建专用的测试桩私网 IP，不触碰实例主 IP。"""
-    instances = client.compute.list_instances()
-    matched = None
-    for inst in instances:
-        if (
-            inst["id"] == instance_query
-            or inst["name"].lower() == instance_query.lower()
-        ):
+    cache_key = instance_query.lower()
+    if cache_key in _PROBE_CACHE:
+        return _PROBE_CACHE[cache_key]
+
+    last_err = None
+    for attempt in range(3):
+        try:
+            instances = client.compute.list_instances()
+            matched = None
+            for inst in instances:
+                if (
+                    inst["id"] == instance_query
+                    or inst["name"].lower() == instance_query.lower()
+                ):
+                    matched = inst
+                    break
+
+            if not matched:
+                raise ValueError(
+                    f"未找到名称或 OCID 匹配的计算实例: '{instance_query}'"
+                )
+            break
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(2.0)
+                continue
+            raise last_err from e
             matched = inst
             break
 
@@ -474,13 +505,15 @@ def get_or_create_probe_private_ip(
     for p in p_ips:
         has_probe = p.display_name and "probe" in p.display_name.lower()
         if p.display_name == probe_name or p.ip_address == probe_ip or has_probe:
-            return {
+            res_info = {
                 "id": p.id,
                 "ip": p.ip_address,
                 "vnic_id": vnic_id,
                 "instance_name": matched["name"],
                 "created_new": False,
             }
+            _PROBE_CACHE[cache_key] = res_info
+            return res_info
 
     # 不存在则常驻创建一个辅助私网 IP
     print(
@@ -498,13 +531,15 @@ def get_or_create_probe_private_ip(
         f"{C_YELLOW}[重要提醒] 请确保在 Ubuntu 实例内已执行过一次: "
         f"`sudo ip addr add {res['ip']}/24 dev enp0s6`{C_RESET}"
     )
-    return {
+    res_info = {
         "id": res["id"],
         "ip": res["ip"],
         "vnic_id": vnic_id,
         "instance_name": matched["name"],
         "created_new": True,
     }
+    _PROBE_CACHE[cache_key] = res_info
+    return res_info
 
 
 def get_default_physical_gateway() -> str:
@@ -703,13 +738,18 @@ def run_latency_test_on_probe(
         pass
 
     t0 = time.time()
-    try:
-        client.network.assign_public_ip(
-            public_ip_id=public_ip_id, private_ip_id=probe_id
-        )
-    except Exception as e:
-        print(f"{C_RED}挂载测试桩失败: {e}{C_RESET}", file=sys.stderr)
-        raise
+    for attempt in range(3):
+        try:
+            client.network.assign_public_ip(
+                public_ip_id=public_ip_id, private_ip_id=probe_id
+            )
+            break
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2.0)
+                continue
+            print(f"{C_RED}挂载测试桩失败: {e}{C_RESET}", file=sys.stderr)
+            raise
 
     bind_cost = round(time.time() - t0, 2)
     print(f"{C_GREEN}✓ 1:1 NAT 动态映射生效（耗时 {bind_cost} 秒）。{C_RESET}")

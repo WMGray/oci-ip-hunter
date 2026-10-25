@@ -40,6 +40,8 @@ oci_api_key*
 # Local test data & private records
 tools/ips.txt
 tools/reports/
+tools/*_result.json
+tools/test_ten_ips.py
 OCI CLI安装与远程调用记录.md
 
 # Operating System
